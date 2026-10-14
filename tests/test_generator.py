@@ -127,3 +127,115 @@ def test_all_club_pairs_simulate():
 def test_same_club_twice_rejected():
     with pytest.raises(ValueError):
         simulate_match("RVR", "RVR", 1)
+
+# ---------------------------------------------------------------------- tracking frames
+@pytest.fixture(scope="module")
+def full_match():
+    from generator import simulate_match_full
+    return simulate_match_full("RVR", "HBR", 42)
+
+
+def test_frames_valid_one_per_second(full_match):
+    from generator import validate_frames
+    meta, events, frames = full_match
+    assert validate_frames(meta, frames) == []
+    assert [f["t"] for f in frames] == list(range(len(frames)))
+    assert 5400 <= len(frames) <= 6100
+    assert meta["frame_count"] == len(frames)
+
+
+def test_frames_have_22_players_ball_and_refs(full_match):
+    _, _, frames = full_match
+    first = frames[0]
+    assert len(first["players"]) == 22
+    assert len(first["refs"]) == 3
+    assert len(first["ball"]) == 2
+
+
+def test_frames_do_not_change_events():
+    """Adding frames must not change what a seed produces."""
+    from generator import simulate_match_full
+    meta_a, events_a = simulate_match("RVR", "HBR", 42)
+    meta_b, events_b, _ = simulate_match_full("RVR", "HBR", 42)
+    assert events_a == events_b
+    assert meta_a["result"] == meta_b["result"]
+
+
+def test_players_move_realistic_distances(full_match):
+    import math
+    meta, _, frames = full_match
+    starters = [p["player_id"] for p in meta["home"]["lineup"] if p["position"] != "GK"]
+    pid = starters[0]
+    dist, prev = 0.0, None
+    for f in frames:
+        if pid not in f["players"]:
+            break
+        x, y, _ = f["players"][pid]
+        if prev and prev[2] == f["period"]:
+            dist += math.dist((x, y), prev[:2])
+        prev = (x, y, f["period"])
+    assert 5 <= dist / 1000 <= 14
+
+
+def test_substitute_appears_in_frames_after_coming_on(full_match):
+    _, events, frames = full_match
+    sub = next(e for e in events if e["type"] == "substitution")
+    after = next(f for f in frames if f["t"] > sub["t"] + 1)
+    assert sub["related_player_id"] in after["players"]
+    assert sub["player_id"] not in after["players"]
+
+# ---------------------------------------------------------------------- tracking frames
+@pytest.fixture(scope="module")
+def full_match():
+    from generator import simulate_match_full
+    return simulate_match_full("RVR", "HBR", 42)
+
+
+def test_frames_valid_one_per_second(full_match):
+    from generator import validate_frames
+    meta, events, frames = full_match
+    assert validate_frames(meta, frames) == []
+    assert [f["t"] for f in frames] == list(range(len(frames)))
+    assert 5400 <= len(frames) <= 6100
+    assert meta["frame_count"] == len(frames)
+
+
+def test_frames_have_22_players_ball_and_refs(full_match):
+    _, _, frames = full_match
+    first = frames[0]
+    assert len(first["players"]) == 22
+    assert len(first["refs"]) == 3
+    assert len(first["ball"]) == 2
+
+
+def test_frames_do_not_change_events():
+    """Adding frames must not change what a seed produces."""
+    from generator import simulate_match_full
+    meta_a, events_a = simulate_match("RVR", "HBR", 42)
+    meta_b, events_b, _ = simulate_match_full("RVR", "HBR", 42)
+    assert events_a == events_b
+    assert meta_a["result"] == meta_b["result"]
+
+
+def test_players_move_realistic_distances(full_match):
+    import math
+    meta, _, frames = full_match
+    starters = [p["player_id"] for p in meta["home"]["lineup"] if p["position"] != "GK"]
+    pid = starters[0]
+    dist, prev = 0.0, None
+    for f in frames:
+        if pid not in f["players"]:
+            break
+        x, y, _ = f["players"][pid]
+        if prev and prev[2] == f["period"]:
+            dist += math.dist((x, y), prev[:2])
+        prev = (x, y, f["period"])
+    assert 5 <= dist / 1000 <= 14
+
+
+def test_substitute_appears_in_frames_after_coming_on(full_match):
+    _, events, frames = full_match
+    sub = next(e for e in events if e["type"] == "substitution")
+    after = next(f for f in frames if f["t"] > sub["t"] + 1)
+    assert sub["related_player_id"] in after["players"]
+    assert sub["player_id"] not in after["players"]

@@ -1,1 +1,20 @@
-[]
+[
+  "tests/test_generator.py::test_all_club_pairs_simulate",
+  "tests/test_generator.py::test_at_most_three_subs_and_bench_players_come_on",
+  "tests/test_generator.py::test_clock_fields_consistent",
+  "tests/test_generator.py::test_coordinates_on_pitch",
+  "tests/test_generator.py::test_core_event_types_present",
+  "tests/test_generator.py::test_different_seed_different_match",
+  "tests/test_generator.py::test_every_match_passes_validation",
+  "tests/test_generator.py::test_frames_do_not_change_events",
+  "tests/test_generator.py::test_frames_have_22_players_ball_and_refs",
+  "tests/test_generator.py::test_frames_valid_one_per_second",
+  "tests/test_generator.py::test_goals_match_result_and_have_shots",
+  "tests/test_generator.py::test_match_lasts_ninety_minutes_plus_stoppage",
+  "tests/test_generator.py::test_players_move_realistic_distances",
+  "tests/test_generator.py::test_same_club_twice_rejected",
+  "tests/test_generator.py::test_same_seed_same_match",
+  "tests/test_generator.py::test_substitute_appears_in_frames_after_coming_on",
+  "tests/test_generator.py::test_teams_switch_ends_at_halftime",
+  "tests/test_generator.py::test_validator_catches_bad_events"
+]

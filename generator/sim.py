@@ -316,7 +316,7 @@ class MatchSimulator:
             stoppage = self.rng.uniform(60, 200) if period == 1 else self.rng.uniform(180, 380)
             self.period_end = self.t + HALF + stoppage
             if period == 2:
-                self.track_clear() # teams swap ends at halftime: everyone restarts in position
+                self.track.clear() # teams swap ends at halftime: everyone restarts in position
                 for team in self.teams:
                     team.sub_times = sorted(self.t + self.rng.uniform(600, 2400) for _ in range(3))
             self.emit("half_start", None)
@@ -720,6 +720,14 @@ class MatchSimulator:
 def simulate_match(home: str, away: str, seed: int, match_id: str | None = None,
                    matchday: int | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Play one match and return (metadata, events)."""
+    return MatchSimulator(home, away, seed, match_id, matchday).play()
+
+def simulate_match_full(home: str, away: str, seed: int, match_id: str | None = None,
+                        matchday: int | None = None
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Play one match and return (metadata, events, tracking frames)."""
     sim = MatchSimulator(home, away, seed, match_id, matchday)
     meta, events = sim.play()
     return meta, events, sim.frames
+
+
