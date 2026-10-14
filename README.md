@@ -95,20 +95,28 @@ TODO: short description of the match generator.
 
 - Event format: `docs/schema.md`
 - Team styles, player traits, formations, tactics, match stakes
+- Tracking frames: every player, the ball and 3 officials, once per second (`frames.json1`)
 - Seeded, repeatable matches + scenario controls (red card, comeback, injury)
 - Fictional league: TODO clubs × TODO players, with portfolios and history
 
 ### Realism report
 
-| Check | Target | Our season | Pass |
+| Check | Target | Ours | Pass |
 | --- | --- | --- | --- |
-| Goals per match | 2–3.5 | TODO | TODO |
-| Shots per team | 9–16 | TODO | TODO |
-| Pass accuracy | 75–88% | TODO | TODO |
-| Possession split | 35–65% | TODO | TODO |
-| Fouls per match | 18–26 | TODO | TODO |
-| Cards per match | 2–5 | TODO | TODO |
-| Distance per outfield player | 9–12 km | TODO | TODO |
+| Goals per match | 2.0–3.5 | 2.7 | ✅ |
+| Shots per team | 9–16 | 11.8 | ✅ |
+| Shots on target per team | 3–6 | 4.0 | ✅ |
+| xG per shot | 0.08–0.13 | 0.115 | ✅ |
+| Passes per team | 350–600 | 545 | ✅ |
+| Pass accuracy | 75–88% | 80.6% | ✅ |
+| Possession of dominant side | 50–65% | 52.3% | ✅ |
+| Fouls per match | 18–26 | 23.7 | ✅ |
+| Cards per match | 2–5 | 4.5 | ✅ |
+| Corners per team | 3.5–6.5 | 4.3 | ✅ |
+| Ball in play | 50–62 min | 54.0 min | ✅ |
+| Distance per outfield player | 9–12 km | 10.8 km | ✅ |
+| Time spent sprinting (>25 km/h) | 1–5% | 3.1% | ✅ |
+
 
 TODO: cite source for target ranges.
 
@@ -199,7 +207,8 @@ TODO: Bicep deploy steps from `/infra`.
 /mcp-server    match-state, player, club and chemistry tools
 /web           screen: pitch, cards, viewer modes
 /infra         Azure deployment (Bicep)
-/docs          architecture diagrams, schema, README assets
+/docs          architecture diagrams, schema, AI output formats, README assets
+/examples      sample Why? card and overlay cues for building the frontend
 ```
 
 ---

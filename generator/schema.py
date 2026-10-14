@@ -182,3 +182,66 @@ def validate_match(meta: dict[str, Any], events: list[dict[str, Any]]) -> list[s
     if goals[home] != meta["result"]["home"] or goals[away] != meta["result"]["away"]:
         errs.append(f"goal events {goals} do not match result {meta['result']}")
     return errs
+
+# ---------------------------------------------------------------------- tracking frames
+# One frame per second of match clock. Each frame is one JSON object (one line in
+# frames.jsonl) with every player on the pitch, the ball and the 3 officials.
+FRAME_FIELDS: dict[str, type | tuple[type, ...]] = {
+    "match_id": str,
+    "t": int,
+    "period": int,
+    "minute": int,
+    "added": int,
+    "second": int,
+    "possession_team": (str, type(None)),
+    "ball": list,  # [x, y]
+    "players": dict,  # player_id -> [x, y, top speed km/h during that second]
+    "refs": list,  # [[x, y], [x, y], [x, y]]: referee, assistant 1, assistant 2
+}
+MAX_PLAYER_SPEED_KMH = 37.0
+
+
+def validate_frame(f: dict[str, Any]) -> list[str]:
+    """Return a list of problems with one tracking frame. Empty list means valid."""
+    errs: list[str] = []
+    ft = f.get("t", "?")
+    for name, typ in FRAME_FIELDS.items():
+        if name not in f:
+            errs.append(f"frame {ft}: missing {name}")
+        elif not isinstance(f[name], typ) or isinstance(f[name], bool):
+            errs.append(f"frame {ft}: {name} has wrong type {type(f[name]).__name__}")
+    if errs:
+        return errs
+    if set(f) - set(FRAME_FIELDS):
+        errs.append(f"frame {ft}: unknown fields {sorted(set(f) - set(FRAME_FIELDS))}")
+    if len(f["ball"]) != 2 or not _in_pitch(*f["ball"]):
+        errs.append(f"frame {ft}: ball must be [x, y] on the pitch")
+    if not 14 <= len(f["players"]) <= 22:
+        errs.append(f"frame {ft}: {len(f['players'])} players on the pitch")
+    for pid, v in f["players"].items():
+        if len(v) != 3 or not _in_pitch(v[0], v[1]):
+            errs.append(f"frame {ft}: player {pid} must be [x, y, speed] on the pitch")
+        elif not 0 <= v[2] <= MAX_PLAYER_SPEED_KMH:
+            errs.append(f"frame {ft}: player {pid} speed {v[2]} km/h out of range")
+    if len(f["refs"]) != 3 or any(len(r) != 2 or not _in_pitch(*r) for r in f["refs"]):
+        errs.append(f"frame {ft}: refs must be three [x, y] points on the pitch")
+    return errs
+
+
+def validate_frames(meta: dict[str, Any], frames: list[dict[str, Any]]) -> list[str]:
+    """Check all frames of a match: valid, one per second with no gaps, known players."""
+    errs: list[str] = []
+    squad = {p["player_id"] for side in ("home", "away")
+             for p in meta[side]["lineup"] + meta[side]["bench"]}
+    for i, f in enumerate(frames):
+        errs.extend(validate_frame(f))
+        if f.get("t") != i:
+            errs.append(f"frame {i}: t should be {i}, got {f.get('t')}")
+        unknown = set(f.get("players", {})) - squad
+        if unknown:
+            errs.append(f"frame {i}: players not in either squad {sorted(unknown)}")
+        if f.get("match_id") != meta["match_id"]:
+            errs.append(f"frame {i}: wrong match_id")
+    if frames and meta.get("frame_count") not in (None, len(frames)):
+        errs.append(f"meta.frame_count {meta['frame_count']} != {len(frames)} frames")
+    return errs

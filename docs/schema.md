@@ -6,14 +6,14 @@ Change this format only by bumping `schema_version` and updating both files.
 
 ## Files
 
-Each match is written as two files in `data/matches/<match_id>/`:
+Each match is written as three files in `data/matches/<match_id>/`:
 
 | File | What |
 | --- | --- |
 | `meta.json` | Match metadata: clubs, lineups, bench, result, durations |
 | `events.jsonl` | One event per line, in order |
-
-When streamed (`--stream`), the first line is the metadata with `"type": "match_meta"`, then one event per line.
+| `frames.json1` | Tracking frames: one per second, every player, ball and officials |
+When streamed (`--stream`), the first line is the metadata with `"type": "match_meta"`, then events and frames are merged in time order. Frames carry `"type": "frame"` in the stream.
 
 ## Pitch and coordinates
 
@@ -91,6 +91,34 @@ Optional fields, present when relevant:
 | `result` | Final score |
 | `duration` | Length of each period and ball-in-play seconds |
 | `event_count` | Number of events |
+| `frame_rate_hz`, `frame_count` | Tracking frame rate (1) and number of frames |
+| `officials` | Order of the three entries in each frame's `refs` |
+
+
+
+## Tracking frames (`frames.jsonl`)
+
+One frame for every second of match clock: frame `t` = 0, 1, 2… with no gaps, about 5,800 per match. Each frame is the state at that second.
+
+| Field | Type | Example | Notes |
+| --- | --- | --- | --- |
+| `match_id` | string | `m-RVR-HBR-42` | |
+| `t` | int | 1300 | Same clock as events |
+| `period`, `minute`, `added`, `second` | int | 1, 22, 0, 40 | Same meaning as events |
+| `possession_team` | string or null | `RVR` | |
+| `ball` | [x, y] | `[97.6, 33.5]` | Absolute metres |
+| `players` | object | `{"RVR-09": [96.1, 34.0, 28.4], …}` | `player_id` → `[x, y, top speed km/h during that second]`. Only players on the pitch, so subs and red cards show up |
+| `refs` | list | `[[89.6, 40.5], [97.6, 0.0], [52.5, 68.0]]` | Referee, assistant 1, assistant 2 |
+
+Distance covered = sum of the straight-line distance between a player's positions in consecutive frames of the same period. Teams restart in formation after halftime, so don't count the jump between periods.
+
+Frames are generated with their own random source, so adding them never changes the events a seed produces.
+
+```json
+{"match_id":"m-RVR-HBR-42","t":1300,"period":1,"minute":22,"added":0,"second":40,"possession_team":"RVR",
+ "ball":[97.6,33.5],"players":{"RVR-01":[11.4,32.7,7.9],"RVR-09":[96.1,34.0,28.4]},
+ "refs":[[89.6,40.5],[97.6,0.0],[52.5,68.0]]}
+```
 
 ## Example
 

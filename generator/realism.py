@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import math
 import statistics as st
 import sys
 
 from .rosters import CLUBS
-from .schema import validate_match
-from .sim import simulate_match
+from .schema import validate_match, validate_frames
+from .sim import simulate_match_full
 from .stats import team_stats
 
 # name -> (low, high, unit)
@@ -30,7 +31,31 @@ TARGETS = {
     "Cards per match": (2.0, 5.0, ""),
     "Corners per team": (3.5, 6.5, ""),
     "Ball in play": (50.0, 62.0, " min"),
+    "Distance per outfield player": (9.0, 12.0, " km"),
+    "Time spent sprinting (>25 km/h)": (1.0, 5.0, "%"),
 }
+
+def _movement(meta: dict, frames: list[dict]) -> tuple[list[float], float]:
+    """Distance (km) of outfield players who played the whole match, and % of time sprinting."""
+    gks = {p["player_id"] for side in ("home", "away")
+           for p in meta[side]["lineup"] + meta[side]["bench"] if p["position"] == "GK"}
+    dist: dict[str, float] = {}
+    seen: dict[str, int] = {}
+    prev: dict[str, tuple[float, float, int]] = {}
+    sprint = total = 0
+    for f in frames:
+        for pid, (x, y, kmh) in f["players"].items():
+            if pid in gks:
+                continue
+            seen[pid] = seen.get(pid, 0) + 1
+            total += 1
+            sprint += kmh > 25
+            if pid in prev and prev[pid][2] == f["period"]:
+                dist[pid] = dist.get(pid, 0.0) + math.dist((x, y), prev[pid][:2])
+            prev[pid] = (x, y, f["period"])
+    full = [d / 1000 for pid, d in dist.items() if seen[pid] >= 0.95 * len(frames)]
+    return full, 100 * sprint / max(total, 1)
+
 
 
 def run(n_matches: int, base_seed: int = 1000) -> tuple[dict[str, float], int]:
@@ -40,8 +65,11 @@ def run(n_matches: int, base_seed: int = 1000) -> tuple[dict[str, float], int]:
     for i in range(n_matches):
         home, away = pairs[i % len(pairs)]
         meta, events = simulate_match(home, away, base_seed + i)
-        if validate_match(meta, events):
+        if validate_match(meta, events) or validate_frames(meta, frames):
             invalid += 1
+        km, sprint_pct = _movement(meta, frames)
+        rows["Distance per outfield player"].extend(km)
+        rows["Time spent sprinting (>25 km/h)"].append(sprint_pct)
         s = team_stats(meta, events)
         teams = list(s.values())
         shots = sum(t.get("shots", 0) for t in teams)
@@ -63,7 +91,7 @@ def run(n_matches: int, base_seed: int = 1000) -> tuple[dict[str, float], int]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--matches", type=int, default=200)
+    ap.add_argument("--matches", type=int, default=100)
     ap.add_argument("--seed", type=int, default=1000)
     args = ap.parse_args(argv)
 

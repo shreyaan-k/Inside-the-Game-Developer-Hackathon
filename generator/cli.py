@@ -2,7 +2,7 @@
 
 Examples
 --------
-  # write data/matches/<match_id>/meta.json and events.jsonl
+  # write data/matches/<match_id>/meta.json, events.jsonl, and frames.jsonl
   python -m generator.cli --home RVR --away HBR --seed 42
 
   # stream events to stdout in "real time", 30x faster than a real match
@@ -20,8 +20,8 @@ import time
 from pathlib import Path
 
 from .rosters import CLUBS
-from .schema import validate_match
-from .sim import simulate_match
+from .schema import validate_match, validate_frames
+from .sim import simulate_match_full
 from .stats import team_stats
 
 
@@ -43,8 +43,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{c.code}  {c.name:20} {c.stadium}")
         return 0
 
-    meta, events = simulate_match(args.home, args.away, args.seed, matchday=args.matchday)
-    errors = validate_match(meta, events)
+    meta, events = simulate_match_full(args.home, args.away, args.seed, matchday=args.matchday)
+    errors = validate_match(meta, events) + validate_frames(meta, frames)
     if errors:
         print(f"generated match failed validation ({len(errors)} problems):", file=sys.stderr)
         print("\n".join(errors[:20]), file=sys.stderr)
@@ -52,14 +52,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.stream:
         print(json.dumps({"type": "match_meta", **meta}), flush=True)
+        stream = sorted([(e["t"], 1, e) for e in events] + 
+                       [(f["t"], 0, {"type": "frame", **f}) for f in frames],
+                       key=lambda item: (item[0], item,[1]))
         last_t = 0.0
         try:
-            for e in events:
-                wait = (e["t"] - last_t) / max(args.speed, 0.001)
+            for t, _, item in stream:
+                wait = (t - last_t) / max(args.speed, 0.001)
                 if wait > 0:
                     time.sleep(wait)
-                last_t = e["t"]
-                print(json.dumps(e, ensure_ascii=False), flush=True)
+                last_t = t
+                print(json.dumps(item, ensure_ascii=False), flush=True)
         except (BrokenPipeError, KeyboardInterrupt):  # reader went away (e.g. `| head`)
             sys.stderr.close()
         return 0
@@ -68,13 +71,13 @@ def main(argv: list[str] | None = None) -> int:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
     with open(folder / "events.jsonl", "w", encoding="utf-8") as f:
-        for e in events:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        for fr in frames:
+            f.write(json.dumps(fr, seperators=(",", ":")) + "\n")
 
     tats(meta, events)
     h, a = meta["home"]["code"], meta["away"]["code"]
     print(f"{meta['home']['name']} {meta['result']['home']} - {meta['result']['away']} {meta['away']['name']}"
-          f"  ({len(events)} events)")
+          f"  ({len(events)} events, {len(frames)} frames)")
     for label, key, fmt in [("Shots", "shots", "{:.0f}"), ("On target", "on_target", "{:.0f}"),
                             ("xG", "xg", "{:.2f}"), ("Passes", "passes", "{:.0f}"),
                             ("Pass accuracy", "pass_accuracy", "{:.0%}"), ("Possession", "possession", "{:.0%}"),

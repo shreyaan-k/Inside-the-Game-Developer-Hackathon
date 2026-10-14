@@ -1,0 +1,33 @@
+{
+  "card_id": "c-m-RVR-HBR-42-0412-casual-en",
+  "moment_id": "m-RVR-HBR-42-0412",
+  "match_id": "m-RVR-HBR-42",
+  "t": 1272.8,
+  "minute": 22,
+  "added": 0,
+  "kind": "goal",
+  "priority": "main",
+  "importance": 0.92,
+  "team": "RVR",
+  "player_ids": ["RVR-09", "RVR-07"],
+  "event_ids": ["m-RVR-HBR-42-00578", "m-RVR-HBR-42-00579", "m-RVR-HBR-42-00581"],
+  "window": {"from_t": 1252.8, "to_t": 1274.3},
+  "viewer": {"mode": "casual", "lang": "en", "club": null, "player_id": null, "metric": null},
+  "headline": "Goal! Quinberg puts Riverton ahead",
+  "why": "Harbor Bay lost the ball in their own half and Riverton moved it forward in seconds. Lundström found Quinberg unmarked eight metres out, and he made no mistake.",
+  "next": {
+    "text": "Harbor Bay now need to chase the game. Expect them to push their full-backs forward, which leaves space for Riverton to counter.",
+    "win_prob_before": {"RVR": 0.41, "draw": 0.31, "HBR": 0.28},
+    "win_prob_after": {"RVR": 0.63, "draw": 0.22, "HBR": 0.15},
+    "prediction": "HBR push full-backs forward",
+    "check_after_t": 1872.8
+  },
+  "facts": [
+    {"claim": "Goal scored by Quinberg", "value": "RVR-09", "source": "events.goal.player_id"},
+    {"claim": "Assisted by Lundström", "value": "RVR-07", "source": "events.goal.related_player_id"},
+    {"claim": "Shot from about eight metres", "value": 7.4, "source": "events.shot.details.distance_m"},
+    {"claim": "Score is now 1-0", "value": {"RVR": 1, "HBR": 0}, "source": "events.goal.details.score"}
+  ],
+  "fact_check": {"status": "approved", "attempts": 2},
+  "audio_url": null
+}

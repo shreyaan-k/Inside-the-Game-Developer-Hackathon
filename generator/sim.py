@@ -85,6 +85,8 @@ def _build_team(side: int, club: Club) -> TeamState:
 
 
 class MatchSimulator:
+    FOLLOW = 0.42 # share of the gap to their target a player closes each second
+    WANDER = 1.4 # how much players drift around their formation spot (m)
     def __init__(self, home: str, away: str, seed: int, match_id: str | None = None,
                  matchday: int | None = None):
         if home.upper() == away.upper():
@@ -112,6 +114,11 @@ class MatchSimulator:
         self.pressure_defender: Slot | None = None
         self.last_pass: tuple[Slot, Slot, float] | None = None  # passer, receiver, time
         self.first_kickoff = self.rng.randint(0, 1)
+        self.frames: list[dict[str, Any]] = []
+        self.frame_rng = random.Random(f"frames:{seed}")
+        self.next_frame_t = 0.0
+        self.track: dict[str, list[float]] = {} # object id -> current [x, y] (absolute)
+        self.wander: dict[str, list[float]] = {} # player id -> drift away from formation spot
 
     # ------------------------------------------------------------------ helpers
     @property
@@ -135,8 +142,8 @@ class MatchSimulator:
         """Convert a point between the two teams' attacking frames."""
         return L - x, W - y
 
-    def _clock(self) -> tuple[int, int, int]:
-        pt = self.t - self.period_start
+    def _clock(self, t: float | None = None) -> tuple[int, int, int]:
+        pt = (self.t if t is None else t) - self.period_start
         base = 0 if self.period == 1 else 45
         if pt < HALF:
             return base + int(pt // 60) + 1, 0, int(pt % 60)
@@ -183,9 +190,76 @@ class MatchSimulator:
         return e
 
     def advance(self, seconds: float, dead: bool = False) -> None:
-        self.t += seconds
+        end = self.t + seconds
+        while self.next_frame_t <= end:  # one tracking frame for every whole second passed
+            self.record_frame(self.next_frame_t)
+            self.next_frame_t += 1.0
+        self.t = end
         if dead:
             self.dead_time += seconds
+
+    # ------------------------------------------------------------------ tracking frames
+    def _move(self, key: str, target: tuple[float, float], vmax: float) -> tuple[float, float, float]:
+        """Move tracked object `key` toward `target` for 1 s at up to `vmax` m/s.
+        Returns new x, y and speed in km/h."""
+        cur = self.track.get(key)
+        if cur is None:  # first frame, or just came on: appear at the target
+            self.track[key] = [target[0], target[1]]
+            return target[0], target[1], 0.0
+        dx, dy = target[0] - cur[0], target[1] - cur[1]
+        d = math.hypot(dx, dy)
+        step = min(d * self.FOLLOW, vmax)  # players close part of the gap each second
+        if d > 0:
+            cur[0] += dx / d * step
+            cur[1] += dy / d * step
+        return cur[0], cur[1], step * 3.6
+
+    def record_frame(self, ft: float) -> None:
+        """Snapshot every player, the ball and the 3 officials at time `ft`."""
+        rng = self.frame_rng
+        minute, added, second = self._clock(ft)
+        players: dict[str, list[float]] = {}
+        for side, team in enumerate(self.teams):
+            bx, by = self.ball if side == self.att else self.mirror(*self.ball)
+            for s in team.slots:
+                pid = s.player.player_id
+                if s is self.carrier:
+                    tx, ty = bx, by
+                else:
+                    w = self.wander.setdefault(pid, [0.0, 0.0])
+                    w[0] = w[0] * 0.85 + rng.gauss(0, self.WANDER)
+                    w[1] = w[1] * 0.85 + rng.gauss(0, self.WANDER)
+                    px, py = team.pos(s, bx, by)
+                    tx, ty = px + w[0], py + w[1]
+                tx, ty = _clamp(tx, 0.5, L - 0.5), _clamp(ty, 0.5, W - 0.5)
+                late = max(0.0, (ft - 3600) / 2400)  # tire over the last 40 minutes
+                vmax = (5.0 + s.player.pace / 99 * 4.5) * (1 - 0.12 * late * (1 - s.player.stamina / 100))
+                x, y, kmh = self._move(pid, self.to_abs(side, tx, ty), vmax)
+                burst = kmh * rng.uniform(1.0, 1.12)  # peak within the second is a bit above the average
+                players[pid] = [round(x, 1), round(y, 1), round(min(burst, 36.0), 1)]
+
+        ball = self.to_abs(self.att, *self.ball)
+        bx, by = ball
+        refs = []
+        for key, target in (("ref", (bx - 8, by + 7)),
+                            ("ar1", (_clamp(bx, L / 2, L - 1), 0.0)),
+                            ("ar2", (_clamp(bx, 1, L / 2), W))):
+            x, y, _ = self._move(key, (_clamp(target[0], 0, L), _clamp(target[1], 0, W)), 7.0)
+            refs.append([round(x, 1), round(y, 1)])
+
+        self.frames.append({
+            "match_id": self.match_id,
+            "t": int(ft),
+            "period": self.period,
+            "minute": minute,
+            "added": added,
+            "second": second,
+            "possession_team": self.team.code if self.possession_id else None,
+            "ball": [round(bx, 1), round(by, 1)],
+            "players": players,
+            "refs": refs,
+        })
+
 
     def nearest(self, team: TeamState, x: float, y: float, k: int = 3,
                 exclude: Slot | None = None, outfield: bool = False) -> list[Slot]:
@@ -242,6 +316,7 @@ class MatchSimulator:
             stoppage = self.rng.uniform(60, 200) if period == 1 else self.rng.uniform(180, 380)
             self.period_end = self.t + HALF + stoppage
             if period == 2:
+                self.track_clear() # teams swap ends at halftime: everyone restarts in position
                 for team in self.teams:
                     team.sub_times = sorted(self.t + self.rng.uniform(600, 2400) for _ in range(3))
             self.emit("half_start", None)
@@ -636,10 +711,15 @@ class MatchSimulator:
                 "ball_in_play_s": round(sum(self.period_lengths) - self.dead_time, 1),
             },
             "event_count": len(self.events),
+            "frame_rate_hz": 1,
+            "frame_count": len(self.frames),
+            "officials": ["referee", "assistant_1", "assistant_2"]
         }
 
 
 def simulate_match(home: str, away: str, seed: int, match_id: str | None = None,
                    matchday: int | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Play one match and return (metadata, events)."""
-    return MatchSimulator(home, away, seed, match_id, matchday).play()
+    sim = MatchSimulator(home, away, seed, match_id, matchday)
+    meta, events = sim.play()
+    return meta, events, sim.frames
