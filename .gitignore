@@ -8,3 +8,9 @@
 .vs/Inside-the-Game-Developer-Hackathon.slnx/FileContentIndex/94567387-737f-4e69-93ab-e94136276468.vsidx
 .vs/Inside-the-Game-Developer-Hackathon.slnx/FileContentIndex/5807168f-fcf3-48fe-a983-6561dd0f2db0.vsidx
 .vs/VSWorkspaceState.json
+
+venv/
+__pycache__/
+.pytest_cache/
+.env
+.DS_Store
