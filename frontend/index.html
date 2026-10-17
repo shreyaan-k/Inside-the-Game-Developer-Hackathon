@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why Match Intelligence</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    pre { background: #f4f4f4; padding: 1rem; overflow: auto; border-radius: 8px; }
+  </style>
+</head>
+<script src="front.js"></script>
+<body>
+  <h1>Why Match Intelligence</h1>
+  <button id="load">Load why card</button>
+  <pre id="out">Click the button</pre>
+
+  <script>
+    document.getElementById("load").onclick = async () => {
+      const res = await fetch("/api/examples/why_card");
+      const data = await res.json();
+      document.getElementById("out").textContent = JSON.stringify(data, null, 2);
+    };
+  </script>
+</body>
+</html>
